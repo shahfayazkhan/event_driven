@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event-Driven System Monitor | Node.js + PostgreSQL + Sequelize</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-title">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>Event-Driven Architecture Engine</h1>
+          <span class="sub-badge">Node.js • PostgreSQL • Sequelize • Outbox Pattern</span>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-indicator" id="connection-status">
+          <span class="status-dot"></span>
+          <span class="status-text">Connecting to SSE...</span>
+        </div>
+        <button class="btn btn-outline" id="refresh-btn">🔄 Refresh Data</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard-grid">
+
+    <!-- Top Architecture Flow Diagram Banner -->
+    <section class="card architecture-banner">
+      <h2 class="section-title"><span>🔄</span> Transactional Outbox & Event Pipeline Flow</h2>
+      <div class="pipeline-visual">
+        <div class="node-box" id="node-order">
+          <div class="node-icon">🛒</div>
+          <div class="node-title">1. Order Service</div>
+          <div class="node-desc">Sequelize Transaction</div>
+        </div>
+        <div class="pipeline-arrow">➔</div>
+        <div class="node-box" id="node-outbox">
+          <div class="node-icon">📦</div>
+          <div class="node-title">2. Outbox Table</div>
+          <div class="node-desc">PENDING State</div>
+        </div>
+        <div class="pipeline-arrow">➔</div>
+        <div class="node-box" id="node-worker">
+          <div class="node-icon">⚙️</div>
+          <div class="node-title">3. Outbox Worker</div>
+          <div class="node-desc">Poll & Dispatch</div>
+        </div>
+        <div class="pipeline-arrow">➔</div>
+        <div class="node-box" id="node-bus">
+          <div class="node-icon">📡</div>
+          <div class="node-title">4. Event Bus</div>
+          <div class="node-desc">Publish Events</div>
+        </div>
+        <div class="pipeline-arrow">➔</div>
+        <div class="node-subscribers">
+          <div class="sub-chip" id="sub-inv">🏬 Inventory</div>
+          <div class="sub-chip" id="sub-pay">💳 Payment</div>
+          <div class="sub-chip" id="sub-notif">📧 Notification</div>
+          <div class="sub-chip" id="sub-audit">📝 Audit Log</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Column 1: Order Simulator & Inventory -->
+    <div class="grid-col flex-col">
+      <!-- Order Creation Form Card -->
+      <section class="card glass-card">
+        <h2 class="section-title"><span>✨</span> Simulate New Order Event</h2>
+        <form id="order-form">
+          <div class="form-group">
+            <label for="customerName">Customer Name</label>
+            <input type="text" id="customerName" class="form-control" value="Alex Johnson" required>
+          </div>
+          <div class="form-group">
+            <label for="customerEmail">Customer Email</label>
+            <input type="email" id="customerEmail" class="form-control" value="alex@example.com" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="productName">Select Product</label>
+              <select id="productName" class="form-control" required>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="quantity">Quantity</label>
+              <input type="number" id="quantity" class="form-control" value="1" min="1" max="100" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            🚀 Trigger Order Creation Event
+          </button>
+        </form>
+      </section>
+
+      <!-- Inventory Stock Status Card -->
+      <section class="card glass-card">
+        <div class="card-header-flex">
+          <h2 class="section-title"><span>🏬</span> Inventory Stocks</h2>
+          <span class="badge badge-info" id="inventory-count">Loading...</span>
+        </div>
+        <div id="inventory-container" class="inventory-list">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+    </div>
+
+    <!-- Column 2: Outbox Table & Live Event Stream -->
+    <div class="grid-col flex-col">
+      <!-- Transactional Outbox Events Card -->
+      <section class="card glass-card">
+        <div class="card-header-flex">
+          <h2 class="section-title"><span>📦</span> Transactional Outbox Queue</h2>
+          <span class="badge badge-purple" id="outbox-count">0 Events</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Event Type</th>
+                <th>Aggregate</th>
+                <th>Status</th>
+                <th>Retries</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="outbox-tbody">
+              <tr><td colspan="6" class="text-center">Loading outbox events...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Orders Status Card -->
+      <section class="card glass-card">
+        <div class="card-header-flex">
+          <h2 class="section-title"><span>📊</span> Orders Workflow State</h2>
+          <span class="badge badge-success" id="orders-count">0 Orders</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Product</th>
+                <th>Qty</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody">
+              <tr><td colspan="6" class="text-center">Loading orders...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- Column 3: Live Real-Time Console & Audit Logs -->
+    <div class="grid-col flex-col">
+      <!-- Live Real-Time Console -->
+      <section class="card glass-card console-card">
+        <div class="card-header-flex">
+          <h2 class="section-title"><span>📡</span> Live Event Stream & Worker Console</h2>
+          <button class="btn-xs btn-outline" id="clear-console">Clear</button>
+        </div>
+        <div class="console-body" id="event-stream-console">
+          <div class="console-line system-line">[System] Event Stream Initialized. Listening for events...</div>
+        </div>
+      </section>
+
+      <!-- Audit Log Trail -->
+      <section class="card glass-card">
+        <div class="card-header-flex">
+          <h2 class="section-title"><span>📝</span> Audit Trail Log</h2>
+          <span class="badge badge-neutral" id="audit-count">0 Logs</span>
+        </div>
+        <div class="audit-list" id="audit-container">
+          <div class="text-center text-muted">No audit logs yet.</div>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
